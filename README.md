@@ -12,3 +12,4 @@ STRIPE_EXAMPLE_PAYMENTS_BACKEND_URL=https://my-backend.herokuapp.com/
 # Set to a test publishable key from https://dashboard.stripe.com/test/apikeys
 STRIPE_EXAMPLE_PAYMENTS_PUBLISHABLE_KEY=pk_test_mykey
 ``` 
+Backend at https://github.com/karlr-stripe/stripe-android-simple-accept-a-payment-backend 
