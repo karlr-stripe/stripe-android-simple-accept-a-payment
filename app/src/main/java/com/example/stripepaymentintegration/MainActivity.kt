@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Button
 import com.android.volley.Request
@@ -12,12 +14,8 @@ import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.gson.GsonBuilder
-import com.stripe.android.ApiResultCallback
-import com.stripe.android.PaymentConfiguration
-import com.stripe.android.PaymentIntentResult
-import com.stripe.android.Stripe
-import com.stripe.android.model.ConfirmPaymentIntentParams
-import com.stripe.android.model.StripeIntent
+import com.stripe.android.*
+import com.stripe.android.model.*
 import com.stripe.android.view.CardInputWidget
 import java.lang.ref.WeakReference
 
@@ -28,7 +26,12 @@ class MainActivity : AppCompatActivity() {
     private var publishableKey = BuildConfig.PUBLISHABLE_KEY
 
     private lateinit var paymentIntentClientSecret: String
-    private lateinit var stripe: Stripe
+    private val stripe: Stripe by lazy {
+        Stripe(
+            applicationContext,
+            PaymentConfiguration.getInstance(applicationContext).publishableKey
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,18 +58,19 @@ class MainActivity : AppCompatActivity() {
                 { response ->
                     paymentIntentClientSecret = response
                     Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
-                    // Hook up the pay button to the card widget and stripe instance
+                    // Hook up the pay button
                     val payButton: Button = findViewById(R.id.payButton)
-                    val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget)
                     payButton.setOnClickListener {
-                                            val params = cardInputWidget.paymentMethodCreateParams
-                                            if (params != null) {
-                                                val confirmParams = ConfirmPaymentIntentParams
-                                                        .createWithPaymentMethodCreateParams(params, paymentIntentClientSecret)
-                                                stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
-                                                stripe.confirmPayment(this, confirmParams)
-                                            }
-                                        }
+                            val billingDetails = PaymentMethod.BillingDetails(name = "Jenny Rosen")
+                            val paymentMethodCreateParams = PaymentMethodCreateParams.createGrabPay(billingDetails)
+                            val confirmParams = ConfirmPaymentIntentParams
+                                .createWithPaymentMethodCreateParams(
+                                    paymentMethodCreateParams = paymentMethodCreateParams,
+                                    clientSecret = paymentIntentClientSecret,
+                                    returnUrl = "yourapp://checkout_complete"
+                            )
+                            stripe.confirmPayment(this, confirmParams)
+                    }
                 },
                 { error -> Log.e("startCheckout", "error loading PaymentIntent!") })
 
@@ -83,9 +87,45 @@ class MainActivity : AppCompatActivity() {
             override fun onSuccess(result: PaymentIntentResult) {
                 val paymentIntent = result.intent
                 val status = paymentIntent.status
+                Log.d("onPaymentResult", "got status $status")
                 if (status == StripeIntent.Status.Succeeded) {
                     val gson = GsonBuilder().setPrettyPrinting().create()
-                    displayAlert(weakActivity.get(), "Payment succeeded", gson.toJson(paymentIntent), restartDemo = true)
+                    displayAlert(
+                        weakActivity.get(),
+                        "Payment succeeded",
+                        gson.toJson(paymentIntent),
+                        restartDemo = true
+                    )
+                } else if (status == StripeIntent.Status.Processing) {
+                        val gson = GsonBuilder().setPrettyPrinting().create()
+                        displayAlert(weakActivity.get(), "Payment is processing, please wait..", gson.toJson(paymentIntent), restartDemo = false)
+                        // wait a few seconds for the payment to complete
+                        // purely for demonstration — in a real integration you should robustly poll here instead
+                        Handler(Looper.getMainLooper()).postDelayed(
+                            {
+                                stripe.retrievePaymentIntent(clientSecret = paymentIntent.clientSecret!!, callback = object : ApiResultCallback<PaymentIntent> {
+                                    override fun onSuccess(retrievedPaymentIntent: PaymentIntent) {
+                                        if (retrievedPaymentIntent.status == StripeIntent.Status.Succeeded) {
+                                            val gson = GsonBuilder().setPrettyPrinting().create()
+                                            displayAlert(
+                                                weakActivity.get(),
+                                                "Payment succeeded",
+                                                gson.toJson(retrievedPaymentIntent),
+                                                restartDemo = true
+                                            )
+                                        }else{
+                                            Log.d("retrievePaymentIntent", "got status $status")
+                                            // TODO : wait and poll again, etc..
+                                        }
+                                    }
+
+                                    override fun onError(e: Exception) {
+                                        Log.e("retrievePaymentIntent", "error retrieving PaymentIntent while processing ${e.message}")
+                                    }
+                                })
+                            },
+                            3000 // value in milliseconds
+                        )
                 } else {
                     displayAlert(weakActivity.get(), "Payment failed", paymentIntent.lastPaymentError?.message ?: "")
                 }
