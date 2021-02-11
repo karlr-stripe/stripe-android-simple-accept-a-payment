@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import com.android.volley.Request
-import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.gson.GsonBuilder
@@ -37,7 +36,6 @@ class MainActivity : AppCompatActivity() {
             applicationContext,
             publishableKey
         )
-
         startCheckout()
     }
 
@@ -83,6 +81,9 @@ class MainActivity : AppCompatActivity() {
             override fun onSuccess(result: PaymentIntentResult) {
                 val paymentIntent = result.intent
                 val status = paymentIntent.status
+                val outcome = result.outcome
+                Log.d("onPaymentResult", "got status $status")
+                Log.d("onPaymentResult", "got outcome $outcome")
                 if (status == StripeIntent.Status.Succeeded) {
                     val gson = GsonBuilder().setPrettyPrinting().create()
                     displayAlert(weakActivity.get(), "Payment succeeded", gson.toJson(paymentIntent), restartDemo = true)
@@ -120,6 +121,4 @@ class MainActivity : AppCompatActivity() {
             dialog.show()
         }
     }
-
-
 }
