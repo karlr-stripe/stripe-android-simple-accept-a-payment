@@ -1,45 +1,93 @@
 package com.example.stripepaymentintegration
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
-import com.google.gson.GsonBuilder
 import com.stripe.android.ApiResultCallback
 import com.stripe.android.PaymentConfiguration
-import com.stripe.android.PaymentIntentResult
 import com.stripe.android.Stripe
 import com.stripe.android.model.ConfirmPaymentIntentParams
-import com.stripe.android.model.StripeIntent
+import com.stripe.android.model.PaymentMethod
+import com.stripe.android.model.PaymentMethodCreateParams
 import com.stripe.android.view.CardInputWidget
-import java.lang.ref.WeakReference
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    // these need to be set via gradle.properties
+
     private var backendUrl = BuildConfig.BACKEND_URL
     private var publishableKey = BuildConfig.PUBLISHABLE_KEY
 
     private lateinit var paymentIntentClientSecret: String
     private lateinit var stripe: Stripe
 
+
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        toast(throwable.message)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
         PaymentConfiguration.init(
             applicationContext,
             publishableKey
         )
-        startCheckout()
     }
 
-    private fun startCheckout() {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == REQUEST_PAYMENT) {
+            if (resultCode == Activity.RESULT_OK) {
+                toast("Success!")
+            } else {
+                toast("Fail!")
+            }
+        }
+    }
+
+    fun onPay(view: View) {
+        stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
+        val card = PaymentMethodCreateParams.Card.Builder()
+            .setNumber("4242424242424242")
+            .setExpiryMonth(12)
+            .setExpiryYear(2027)
+            .setCvc("123")
+            .build()
+        val params = PaymentMethodCreateParams.create(card)
+        stripe.createPaymentMethod(
+            params,
+            null,
+            null,
+            object : ApiResultCallback<PaymentMethod> {
+                override fun onError(e: Exception) {
+                    toast("Error getting payment method")
+                }
+
+                override fun onSuccess(result: PaymentMethod) {
+                    val paymentMethodId = result.id ?: run {
+                        toast("No payment method id")
+                        return
+                    }
+                    getPaymentIntentAndStartActivity(result)
+                }
+
+            })
+    }
+
+    private fun getPaymentIntentAndStartActivity(result: PaymentMethod) {
         // Request a PaymentIntent from your server and store its client secret in paymentIntentClientSecret
 
         // from https://developer.android.com/training/volley/simple :
@@ -50,75 +98,27 @@ class MainActivity : AppCompatActivity() {
 
         // Request a string response from the provided URL.
         val stringRequest = StringRequest(Request.Method.GET, url,
-                { response ->
-                    paymentIntentClientSecret = response
-                    Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
-                    // Hook up the pay button to the card widget and stripe instance
-                    val payButton: Button = findViewById(R.id.payButton)
-                    val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget)
-                    payButton.setOnClickListener {
-                                            val params = cardInputWidget.paymentMethodCreateParams
-                                            if (params != null) {
-                                                val confirmParams = ConfirmPaymentIntentParams
-                                                        .createWithPaymentMethodCreateParams(params, paymentIntentClientSecret)
-                                                stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
-                                                stripe.confirmPayment(this, confirmParams)
-                                            }
-                                        }
-                },
-                { error -> Log.e("startCheckout", "error loading PaymentIntent!") })
+            { response ->
+                paymentIntentClientSecret = response
+                Log.d("getPaymentIntentAndStartActivity", "got PaymentIntent secret $paymentIntentClientSecret")
+
+                lifecycleScope.launch(coroutineExceptionHandler) {
+                    val intent = PaymentActivity.getIntent(this@MainActivity,
+                        result.id!!, paymentIntentClientSecret, publishableKey)
+                    this@MainActivity.startActivityForResult(intent, REQUEST_PAYMENT)
+                }
+            },
+            { error -> Log.e("getPaymentIntentAndStartActivity", "error loading PaymentIntent!") })
 
         // Add the request to the RequestQueue.
         queue.add(stringRequest)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        val weakActivity = WeakReference<Activity>(this)
-
-        // Handle the result of stripe.confirmPayment
-        stripe.onPaymentResult(requestCode, data, object : ApiResultCallback<PaymentIntentResult> {
-            override fun onSuccess(result: PaymentIntentResult) {
-                val paymentIntent = result.intent
-                val status = paymentIntent.status
-                val outcome = result.outcome
-                Log.d("onPaymentResult", "got status $status")
-                Log.d("onPaymentResult", "got outcome $outcome")
-                if (status == StripeIntent.Status.Succeeded) {
-                    val gson = GsonBuilder().setPrettyPrinting().create()
-                    displayAlert(weakActivity.get(), "Payment succeeded", gson.toJson(paymentIntent), restartDemo = true)
-                } else {
-                    displayAlert(weakActivity.get(), "Payment failed", paymentIntent.lastPaymentError?.message ?: "")
-                }
-            }
-
-            override fun onError(e: Exception) {
-                displayAlert(weakActivity.get(), "Payment failed", e.toString())
-            }
-        })
+    private fun toast(message: String?) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
-    private fun displayAlert(activity: Activity?, title: String, message: String, restartDemo: Boolean = false) {
-        if (activity == null) {
-            return
-        }
-        runOnUiThread {
-            val builder = AlertDialog.Builder(activity!!)
-            builder.setTitle(title)
-            builder.setMessage(message)
-            if (restartDemo) {
-                builder.setPositiveButton("Restart demo") { _, _ ->
-                    val cardInputWidget =
-                            findViewById<CardInputWidget>(R.id.cardInputWidget)
-                    cardInputWidget.clear()
-                    startCheckout()
-                }
-            }
-            else {
-                builder.setPositiveButton("Ok", null)
-            }
-            val dialog = builder.create()
-            dialog.show()
-        }
+    companion object {
+        private const val REQUEST_PAYMENT = 231
     }
 }
