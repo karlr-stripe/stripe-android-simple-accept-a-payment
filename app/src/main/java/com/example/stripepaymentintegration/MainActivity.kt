@@ -36,7 +36,12 @@ class MainActivity : AppCompatActivity() {
             applicationContext,
             publishableKey
         )
-        startCheckout()
+        //startCheckout()
+
+        val intent = Intent(this, WebViewActivity::class.java).apply {
+
+        }
+        startActivity(intent)
     }
 
     private fun startCheckout() {
