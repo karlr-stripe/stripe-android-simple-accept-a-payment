@@ -21,7 +21,7 @@ import android.content.pm.PackageManager
 class WebViewActivity : AppCompatActivity() {
 
     // URL to load in the WebView
-    private val URL = "https://connect.stripe.com/express/oauth/authorize?&redirect_uri=http%3A%2F%2Fkarlr-stripe.ngrok.io%2Fconnect%2Fcallback&client_id=ca_CrMA5imLyc6DL1vZYIOO8YpiHQmqa8QE"
+    private val URL = "https://connect.stripe.com/oauth/authorize?response_type=code&client_id=ca_FkyHCg7X8mlvCUdMDao4mMxagUfhIwXb&scope=read_write"
 
     // variables relating to managing a file chooser dialog
     private val OPEN_FILE_CHOOSER = 7
