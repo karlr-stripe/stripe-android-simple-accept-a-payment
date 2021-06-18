@@ -3,22 +3,18 @@ package com.example.stripepaymentintegration
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
-import com.android.volley.Request
-import com.android.volley.toolbox.StringRequest
-import com.android.volley.toolbox.Volley
+import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.GsonBuilder
 import com.stripe.android.ApiResultCallback
 import com.stripe.android.PaymentConfiguration
 import com.stripe.android.PaymentIntentResult
 import com.stripe.android.Stripe
-import com.stripe.android.model.ConfirmPaymentIntentParams
-import com.stripe.android.model.StripeIntent
-import com.stripe.android.view.CardInputWidget
+import com.stripe.android.model.*
 import java.lang.ref.WeakReference
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,40 +32,30 @@ class MainActivity : AppCompatActivity() {
             applicationContext,
             publishableKey
         )
+        stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
         startCheckout()
     }
 
     private fun startCheckout() {
-        // Request a PaymentIntent from your server and store its client secret in paymentIntentClientSecret
+        // TODO Request a PaymentIntent from your server and store its client secret in paymentIntentClientSecret
+        // here we hard-code one for demonstration
+        // in reality, your backend server would create a PaymentIntent and return the client_secret
+        paymentIntentClientSecret = "pi_1J3PR2Fqoz5F0tFRGcGaeDAI_secret_zUoXOWv4h7CF7gdLD774Z65ve"
 
-        // from https://developer.android.com/training/volley/simple :
+        Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
+        // Hook up the pay button
+        val payButton: Button = findViewById(R.id.payButton)
+        payButton.setOnClickListener {
+            val billingDetails = PaymentMethod.BillingDetails(name = "Jenny Rosen", email = "jenny.rosen@example.com")
+            val ideal = PaymentMethodCreateParams.Ideal("abn_amro")
+            val paymentMethodCreateParams = PaymentMethodCreateParams.create(ideal, billingDetails)
+            val confirmParams = ConfirmPaymentIntentParams
+                    .createWithPaymentMethodCreateParams(paymentMethodCreateParams, paymentIntentClientSecret, returnUrl = "myapp://ideal-complete")
+            
+            stripe.confirmPayment(this, confirmParams)
 
-        // Instantiate the RequestQueue.
-        val queue = Volley.newRequestQueue(this)
-        val url = backendUrl
+        }
 
-        // Request a string response from the provided URL.
-        val stringRequest = StringRequest(Request.Method.GET, url,
-                { response ->
-                    paymentIntentClientSecret = response
-                    Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
-                    // Hook up the pay button to the card widget and stripe instance
-                    val payButton: Button = findViewById(R.id.payButton)
-                    val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget)
-                    payButton.setOnClickListener {
-                                            val params = cardInputWidget.paymentMethodCreateParams
-                                            if (params != null) {
-                                                val confirmParams = ConfirmPaymentIntentParams
-                                                        .createWithPaymentMethodCreateParams(params, paymentIntentClientSecret)
-                                                stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
-                                                stripe.confirmPayment(this, confirmParams)
-                                            }
-                                        }
-                },
-                { error -> Log.e("startCheckout", "error loading PaymentIntent!") })
-
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -108,9 +94,6 @@ class MainActivity : AppCompatActivity() {
             builder.setMessage(message)
             if (restartDemo) {
                 builder.setPositiveButton("Restart demo") { _, _ ->
-                    val cardInputWidget =
-                            findViewById<CardInputWidget>(R.id.cardInputWidget)
-                    cardInputWidget.clear()
                     startCheckout()
                 }
             }
