@@ -16,9 +16,9 @@
         android:id="@+id/cardInputWidget"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:theme="@style/Theme.StripePaymentIntegration.CardInputStyle"
-        app:cardHintText="4040 4040 4040 4040" />
+        android:theme="@style/Theme.StripePaymentIntegration.StyleWithFont"/>
 
 
     <Button android:text="@string/pay" android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/payButton" android:layout_marginTop="20dp" android:backgroundTint="@android:color/holo_green_light"/>
+
 </LinearLayout>

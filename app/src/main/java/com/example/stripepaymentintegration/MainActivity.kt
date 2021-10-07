@@ -21,6 +21,7 @@ import com.stripe.android.model.ConfirmPaymentIntentParams
 import com.stripe.android.model.StripeIntent
 import com.stripe.android.view.CardInputListener
 import com.stripe.android.view.CardInputWidget
+import com.stripe.android.view.CardMultilineWidget
 import java.lang.ref.WeakReference
 
 class MainActivity : AppCompatActivity() {
@@ -60,26 +61,6 @@ class MainActivity : AppCompatActivity() {
                 // Hook up the pay button to the card widget and stripe instance
                 val payButton: Button = findViewById(R.id.payButton)
                 val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget);
-                cardInputWidget.setCardInputListener(object : CardInputListener {
-                    override fun onCardComplete() {
-                    }
-
-                    override fun onCvcComplete() {
-                    }
-
-                    override fun onExpirationComplete() {
-                    }
-
-                    override fun onFocusChange(focusField: CardInputListener.FocusField) {
-                        if (focusField == CardInputListener.FocusField.ExpiryDate) {
-                            var txt =
-                                (cardInputWidget.getChildAt(1) as FrameLayout).getChildAt(1) as TextInputLayout
-                            txt.editText?.hint = "MM/YY"
-                        }
-                    }
-                })
-                var txt = (cardInputWidget.getChildAt(1) as FrameLayout).getChildAt(1) as TextInputLayout
-                txt.editText?.hint = " "
 
                 payButton.setOnClickListener {
                     val params = cardInputWidget.paymentMethodCreateParams

@@ -15,11 +15,21 @@
     </style>
 
     <style name="Theme.StripePaymentIntegration.CardInputStyle" parent="Theme.StripePaymentIntegration">
-<!--        https://stackoverflow.com/a/27588966/9769731-->
         <item name="android:fontFamily">@font/montserrat_regular</item>
         <item name="android:textColor">@color/orange_500</item>
         <item name="android:textColorHint">@color/orange_500</item>
     </style>
 
+
+    <style name="Theme.StripePaymentIntegration.StyleWithFont" parent="Theme.StripePaymentIntegration">
+        <!--        https://stackoverflow.com/a/27588966/9769731-->
+        <item name="android:fontFamily">@font/montserrat_regular</item>
+<!--        <item name="android:letterSpacing">0.2</item>-->
+    </style>
+
     <color name="orange_500">#FF9800</color>
+    <color name="edittext_grey">#999999</color>
+    <color name="text_light">#FCFCFC</color>
+    <dimen name="size_12">12dp</dimen>
+    <dimen name="font_14">14dp</dimen>
 </resources>
