@@ -7,9 +7,11 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.FrameLayout
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
+import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.GsonBuilder
 import com.stripe.android.ApiResultCallback
 import com.stripe.android.PaymentConfiguration
@@ -17,6 +19,7 @@ import com.stripe.android.PaymentIntentResult
 import com.stripe.android.Stripe
 import com.stripe.android.model.ConfirmPaymentIntentParams
 import com.stripe.android.model.StripeIntent
+import com.stripe.android.view.CardInputListener
 import com.stripe.android.view.CardInputWidget
 import java.lang.ref.WeakReference
 
@@ -41,6 +44,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCheckout() {
         // Request a PaymentIntent from your server and store its client secret in paymentIntentClientSecret
+        // , then set up the form
 
         // from https://developer.android.com/training/volley/simple :
 
@@ -50,23 +54,45 @@ class MainActivity : AppCompatActivity() {
 
         // Request a string response from the provided URL.
         val stringRequest = StringRequest(Request.Method.GET, url,
-                { response ->
-                    paymentIntentClientSecret = response
-                    Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
-                    // Hook up the pay button to the card widget and stripe instance
-                    val payButton: Button = findViewById(R.id.payButton)
-                    val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget)
-                    payButton.setOnClickListener {
-                                            val params = cardInputWidget.paymentMethodCreateParams
-                                            if (params != null) {
-                                                val confirmParams = ConfirmPaymentIntentParams
-                                                        .createWithPaymentMethodCreateParams(params, paymentIntentClientSecret)
-                                                stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
-                                                stripe.confirmPayment(this, confirmParams)
-                                            }
-                                        }
-                },
-                { error -> Log.e("startCheckout", "error loading PaymentIntent!") })
+            { response ->
+                paymentIntentClientSecret = response
+                Log.d("startCheckout", "got PaymentIntent secret $paymentIntentClientSecret")
+                // Hook up the pay button to the card widget and stripe instance
+                val payButton: Button = findViewById(R.id.payButton)
+                val cardInputWidget:CardInputWidget = findViewById(R.id.cardInputWidget);
+                cardInputWidget.setCardInputListener(object : CardInputListener {
+                    override fun onCardComplete() {
+                    }
+
+                    override fun onCvcComplete() {
+                    }
+
+                    override fun onExpirationComplete() {
+                    }
+
+                    override fun onFocusChange(focusField: CardInputListener.FocusField) {
+                        if (focusField == CardInputListener.FocusField.ExpiryDate) {
+                            var txt =
+                                (cardInputWidget.getChildAt(1) as FrameLayout).getChildAt(1) as TextInputLayout
+                            txt.editText?.hint = "MM/YY"
+                        }
+                    }
+                })
+                var txt = (cardInputWidget.getChildAt(1) as FrameLayout).getChildAt(1) as TextInputLayout
+                txt.editText?.hint = " "
+
+                payButton.setOnClickListener {
+                    val params = cardInputWidget.paymentMethodCreateParams
+                    if (params != null) {
+                        val confirmParams = ConfirmPaymentIntentParams
+                            .createWithPaymentMethodCreateParams(params, paymentIntentClientSecret)
+                        stripe = Stripe(applicationContext, PaymentConfiguration.getInstance(applicationContext).publishableKey)
+                        stripe.confirmPayment(this, confirmParams)
+                    }
+                }
+
+            },
+            { error -> Log.e("startCheckout", "error loading PaymentIntent!") })
 
         // Add the request to the RequestQueue.
         queue.add(stringRequest)
@@ -109,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             if (restartDemo) {
                 builder.setPositiveButton("Restart demo") { _, _ ->
                     val cardInputWidget =
-                            findViewById<CardInputWidget>(R.id.cardInputWidget)
+                        findViewById<CardInputWidget>(R.id.cardInputWidget)
                     cardInputWidget.clear()
                     startCheckout()
                 }
